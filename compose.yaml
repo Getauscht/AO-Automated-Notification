@@ -1,0 +1,25 @@
+services:
+  painel:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Configure ADMIN_TOKEN}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Configure ENCRYPTION_KEY}
+      WHATSAPP_BRIDGE_URL: http://whatsapp:3001
+      WHATSAPP_BRIDGE_TOKEN: ${BRIDGE_TOKEN:?Configure BRIDGE_TOKEN}
+    volumes:
+      - dados:/data
+    depends_on:
+      - whatsapp
+  whatsapp:
+    build: ./bridge
+    restart: unless-stopped
+    environment:
+      BRIDGE_TOKEN: ${BRIDGE_TOKEN:?Configure BRIDGE_TOKEN}
+    volumes:
+      - whatsapp_auth:/data/auth
+volumes:
+  dados:
+  whatsapp_auth:

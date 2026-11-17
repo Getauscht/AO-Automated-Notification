@@ -1,0 +1,5 @@
+# Context Forge ephemeral and proposal files
+context/
+proposals/
+.tmp*
+.counter.json

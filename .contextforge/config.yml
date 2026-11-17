@@ -1,0 +1,121 @@
+version: 1
+domains:
+  - architecture
+  - frontend
+  - backend
+  - database
+  - testing
+  - devops
+domain_keywords:
+  frontend:
+    - tela
+    - componente
+    - ui
+    - botão
+    - botao
+    - formulário
+    - formulario
+    - layout
+    - css
+    - html
+    - react
+    - vue
+    - angular
+    - tailwind
+  backend:
+    - api
+    - endpoint
+    - serviço
+    - servico
+    - service
+    - controller
+    - repository
+    - rota
+    - route
+    - handler
+    - middleware
+  database:
+    - migration
+    - query
+    - schema
+    - tabela
+    - tabelas
+    - índice
+    - indice
+    - sql
+    - postgres
+    - prisma
+    - orm
+    - banco
+  architecture:
+    - módulo
+    - modulo
+    - monólito
+    - monolito
+    - microservice
+    - camada
+    - contrato
+    - adr
+    - design pattern
+    - arquitetura
+  testing:
+    - teste
+    - testes
+    - unitário
+    - unitario
+    - e2e
+    - vitest
+    - jest
+    - mock
+    - fixture
+  devops:
+    - docker
+    - ci
+    - cd
+    - pipeline
+    - deploy
+    - kubernetes
+    - infra
+    - actions
+context:
+  token_budget: 2000
+  budget_ceiling_multiplier: 2
+  budget_tiers:
+    light: 0.5
+    standard: 1
+    deep: 1.5
+  intent_keywords:
+    light:
+      - corrija
+      - ajuste
+      - conserte
+      - renomeie
+      - typo
+      - fix
+      - corrige
+      - ajusta
+    deep:
+      - refatore
+      - redesenhe
+      - arquitetura de
+      - reescreva
+      - migre
+      - reestruture
+      - refactor
+      - redesign
+      - rewrite
+      - migrate
+  max_knowledge_docs: 3
+  max_learnings: 8
+  max_decisions: 3
+learning:
+  require_approval: true
+  auto_detect_corrections: false
+  consolidation_threshold: 3
+agents:
+  claude_code: true
+  cursor: true
+  antigravity: true
+  vscode_copilot: true
+ignore:
+  - "**/node_modules/**"

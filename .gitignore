@@ -1,0 +1,8 @@
+node_modules/
+bridge/auth/
+bridge/node_modules/
+.taste-skill/
+.env
+data/
+.udm
+.mcp.json
