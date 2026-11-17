@@ -26,7 +26,13 @@ CREATE TABLE IF NOT EXISTS deliveries (
   status TEXT NOT NULL DEFAULT 'pending',
   attempts INTEGER NOT NULL DEFAULT 0,
   last_error TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  next_attempt_at TEXT
 );
-
-
+CREATE TABLE IF NOT EXISTS monitor_status (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  started_at TEXT,
+  finished_at TEXT,
+  last_error TEXT,
+  last_summary TEXT
+);

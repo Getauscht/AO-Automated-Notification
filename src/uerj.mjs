@@ -1,7 +1,8 @@
 import {parseAvailability} from './availability.mjs';
+
 const ORIGIN = 'https://www.alunoonline.uerj.br';
 const URL_LOGIN = `${ORIGIN}/requisicaoaluno/`;
-const clean = s => s.replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ').replace(/\s+/g,' ').trim();
+const clean = s => s.replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ').replace(/\s+/g, ' ').trim();
 function attrs(tag) {
   const out = {};
   for (const m of tag.matchAll(/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) out[m[1].toLowerCase()] = m[2] ?? m[3];
@@ -37,38 +38,66 @@ function disciplineId(html, subjectCode) {
   if (new Set(matches).size !== 1) throw new Error('Disciplina ausente ou ambígua no currículo');
   return matches[0];
 }
-export async function observeUerj(credentials, watch, request = fetch) {
-  if (!/^\d{12}$/.test(credentials.username) || !credentials.password) throw new Error('Credenciais inválidas');
+
+// Reutiliza sessão/cookies e listagem para todas as turmas de uma mesma conta.
+// Redirecionamentos são permitidos somente dentro do domínio HTTPS da UERJ.
+export async function createUerjSession(credentials, request = fetch) {
+  if (!credentials || !/^\d{12}$/.test(credentials.username) || !credentials.password) throw new Error('Credenciais inválidas');
   const cookies = new Map();
-  async function send(url, fields) {
-    const headers = {'User-Agent':'Mozilla/5.0', 'Referer':`${ORIGIN}/`};
-    if (cookies.size) headers.Cookie = [...cookies].map(([k,v])=>`${k}=${v}`).join('; ');
-    const options = {headers, redirect:'manual', signal:AbortSignal.timeout(20000)};
-    if (fields) { options.method='POST'; headers['Content-Type']='application/x-www-form-urlencoded'; options.body=new URLSearchParams(fields).toString(); }
-    const response = await request(url, options);
-    if (!response.ok) throw new Error('Resposta HTTP inesperada da UERJ');
-    const setCookies = response.headers.getSetCookie?.() ?? [];
-    for (const cookie of setCookies) {
-      const pair = cookie.split(';', 1)[0]; const eq = pair.indexOf('=');
-      if (eq > 0) cookies.set(pair.slice(0,eq),pair.slice(eq+1));
+  const loginDeadline = AbortSignal.timeout(45000);
+  async function send(url, fields, signal) {
+    let target = new URL(url);
+    let postFields = fields;
+    for (let hop = 0; hop <= 5; hop++) {
+      if (target.origin !== ORIGIN || target.protocol !== 'https:' || target.username || target.password) throw new Error('Redirecionamento externo bloqueado');
+      const headers = {'User-Agent':'Mozilla/5.0', Referer:`${ORIGIN}/`};
+      if (cookies.size) headers.Cookie = [...cookies].map(([key,value]) => `${key}=${value}`).join('; ');
+      const options = {headers, redirect:'manual', signal:AbortSignal.any([signal || AbortSignal.timeout(20000), AbortSignal.timeout(15000)])};
+      if (postFields) {
+        options.method = 'POST';
+        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        options.body = new URLSearchParams(postFields).toString();
+      }
+      const response = await request(target.href, options);
+      const setCookies = response.headers.getSetCookie?.() ?? (response.headers.get('set-cookie') ? [response.headers.get('set-cookie')] : []);
+      for (const cookie of setCookies) {
+        const pair = cookie.split(';', 1)[0]; const eq = pair.indexOf('=');
+        if (eq > 0) cookies.set(pair.slice(0,eq), pair.slice(eq + 1));
+      }
+      if ([301,302,303,307,308].includes(response.status)) {
+        const location = response.headers.get('location');
+        if (!location) throw new Error('Redirecionamento UERJ sem destino');
+        target = new URL(location, target);
+        if (response.status === 303 || ((response.status === 301 || response.status === 302) && postFields)) postFields = undefined;
+        continue;
+      }
+      if (!response.ok) throw new Error(`Resposta HTTP ${response.status} da UERJ`);
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength > 3_000_000) throw new Error('Resposta excessiva da UERJ');
+      const charset = response.headers.get('content-type')?.match(/charset\s*=\s*([^;\s]+)/i)?.[1] || 'windows-1252';
+      return new TextDecoder(charset).decode(buffer);
     }
-    const buffer = await response.arrayBuffer();
-    if (buffer.byteLength > 3_000_000) throw new Error('Resposta excessiva da UERJ');
-    const charset = response.headers.get('content-type')?.match(/charset\s*=\s*([^;\s]+)/i)?.[1] || 'windows-1252';
-    return new TextDecoder(charset).decode(buffer);
+    throw new Error('Muitos redirecionamentos da UERJ');
   }
-  await send(`${ORIGIN}/`);
-  const login = await send(URL_LOGIN);
-  const loginFields = form(login,'form');
+  await send(`${ORIGIN}/`, undefined, loginDeadline);
+  const login = await send(URL_LOGIN, undefined, loginDeadline);
+  const loginFields = form(login, 'form');
   if (!('_token' in loginFields) || !('requisicao' in loginFields)) throw new Error('Login UERJ mudou');
-  const home = await send(URL_LOGIN, {...loginFields, matricula:credentials.username, senha:credentials.password});
+  const home = await send(URL_LOGIN, {...loginFields, matricula:credentials.username, senha:credentials.password}, loginDeadline);
   const requestCode = menuRequest(home);
-  const menuFields = form(home,'formulario');
+  const menuFields = form(home, 'formulario');
   if (!('_token' in menuFields)) throw new Error('Sessão UERJ inválida');
-  const listing = await send(URL_LOGIN, {...menuFields,target:'0',hRef:'',requisicao:requestCode});
-  const id = disciplineId(listing,watch.subject_code);
-  const listingFields = form(listing,'output');
+  const listing = await send(URL_LOGIN, {...menuFields, target:'0', hRef:'', requisicao:requestCode}, loginDeadline);
+  const listingFields = form(listing, 'output');
   if (!('_token' in listingFields) || !('requisicao' in listingFields)) throw new Error('Consulta UERJ mudou');
-  const detail = await send(URL_LOGIN, {...listingFields,'disciplinas[0]':id});
-  return parseAvailability(detail,watch.subject_code,watch.class_code);
+  return {
+    async observe(watch) {
+      const id = disciplineId(listing, watch.subject_code);
+      const detail = await send(URL_LOGIN, {...listingFields, 'disciplinas[0]':id});
+      return parseAvailability(detail, watch.subject_code, watch.class_code);
+    }
+  };
+}
+export async function observeUerj(credentials, watch, request = fetch) {
+  return (await createUerjSession(credentials, request)).observe(watch);
 }

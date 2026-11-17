@@ -3,9 +3,14 @@ const decoder = new TextDecoder();
 
 function base64(bytes) { return btoa(String.fromCharCode(...bytes)); }
 function bytes(value) { return Uint8Array.from(atob(value), c => c.charCodeAt(0)); }
-async function key(secret) {
+export function validateEncryptionKey(secret) {
+  if (typeof secret !== 'string' || !/^[A-Za-z0-9+/]{43}=$/.test(secret)) throw new Error('ENCRYPTION_KEY deve conter exatamente 32 bytes em base64');
   const raw = bytes(secret);
-  if (raw.length !== 32) throw new Error('ENCRYPTION_KEY deve conter 32 bytes em base64');
+  if (raw.length !== 32 || base64(raw) !== secret) throw new Error('ENCRYPTION_KEY inválida');
+  return raw;
+}
+async function key(secret) {
+  const raw = validateEncryptionKey(secret);
   return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 export async function seal(value, secret) {

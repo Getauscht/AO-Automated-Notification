@@ -1,4 +1,4 @@
-﻿// A falha da consulta nunca é interpretada como ausência de vagas.
+// A falha da consulta nunca é interpretada como ausência de vagas.
 export function transition(previous, observation) {
   if (observation.status === 'error') {
     return { state: previous, notify: false };
@@ -8,6 +8,6 @@ export function transition(previous, observation) {
   }
   return {
     state: observation.status,
-    notify: observation.status !== previous,
+    notify: observation.status === 'open' && previous !== 'open',
   };
 }
